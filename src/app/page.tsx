@@ -1,10 +1,48 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { useStockList, useIndustryScores, formatAmount, formatMCap } from '@/lib/api';
+
+// 阈值配置
+const IAS_HIGH = 75;
+const IAS_LOW = 30;
+const SIGNAL_COOLDOWN = 5 * 60 * 1000; // 5分钟冷却
+
+const lastSignalCheck = new Map<string, number>();
 
 export default function DashboardPage() {
   const { data: stocks, error: stockErr, isValidating: stockLoading } = useStockList(30);
   const { data: industries, isValidating: indLoading } = useIndustryScores();
+
+  // 🔔 每次数据刷新时检查阈值信号
+  useEffect(() => {
+    if (!stocks || stockLoading) return;
+
+    const alerts: Array<{ type: string; name: string; code: string; detail: string }> = [];
+
+    for (const s of stocks) {
+      const key = `${s.stockCode}:signal`;
+      const last = lastSignalCheck.get(key);
+      if (last && Date.now() - last < SIGNAL_COOLDOWN) continue;
+
+      if (s.totalScore >= IAS_HIGH) {
+        alerts.push({ type: 'IAS_HIGH', name: s.stockName, code: s.stockCode, detail: `IAS=${s.totalScore}` });
+        lastSignalCheck.set(key, Date.now());
+      } else if (s.totalScore <= IAS_LOW) {
+        alerts.push({ type: 'IAS_LOW', name: s.stockName, code: s.stockCode, detail: `IAS=${s.totalScore}` });
+        lastSignalCheck.set(key, Date.now());
+      }
+    }
+
+    // 有告警时发送到 QQ
+    if (alerts.length > 0) {
+      fetch('/api/signals/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codes: alerts.map(a => a.code) }),
+      }).catch(() => {/* 静默失败 */});
+    }
+  }, [stocks, stockLoading]);
 
   return (
     <div className="p-6 max-w-[1600px] mx-auto">

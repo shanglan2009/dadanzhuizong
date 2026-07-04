@@ -34,6 +34,35 @@ export default function IndustryPage() {
     );
   }
 
+  // 🔧 非交易日/非交易时段东财返回空数据
+  if (industries.length === 0) {
+    const now = new Date();
+    const day = now.getDay();
+    const hour = now.getHours();
+    const isWeekend = day === 0 || day === 6;
+    const isOutsideHours = hour < 9 || hour > 15;
+
+    return (
+      <div className="p-12 max-w-[600px] mx-auto text-center">
+        <div className="text-6xl mb-4">📭</div>
+        <h2 className="text-xl font-bold mb-3">暂无行业数据</h2>
+        <p className="text-[#9ca3af] mb-2">
+          {isWeekend
+            ? '今天是周末，A 股休市。行业数据将在下一个交易日开盘后更新。'
+            : isOutsideHours
+              ? '当前不在交易时段（9:00-15:00），行业数据将在开盘后更新。'
+              : '东财数据源暂时无数据，请稍后刷新。'}
+        </p>
+        <p className="text-xs text-[#4b5563]">
+          交易日 9:00-15:00 期间数据每 5 分钟自动刷新
+        </p>
+        <button onClick={() => window.location.reload()} className="mt-6 px-4 py-2 bg-[#3b82f6] rounded-lg text-sm">
+          手动刷新
+        </button>
+      </div>
+    );
+  }
+
   const top15 = industries.slice(0, 15);
 
   return (

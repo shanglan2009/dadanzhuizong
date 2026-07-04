@@ -9,28 +9,31 @@ export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get('code') || '600519';
 
   try {
-    const [quotes, fundFlow, financials, news] = await Promise.all([
-      tencentQuote([code]),
-      eastmoneyFundFlow(code),
-      sinaFinancialReport(code, 'lrb', 4),
-      eastmoneyStockNews(code, 5),
-    ]);
+    // 🔧 逐个调用，单个数据源失败不影响整体
+    let quotes: Record<string, any> = {};
+    let fundFlow = { mainNetInflow: 0, superLarge: 0, large: 0, medium: 0, small: 0, mainRatio: 0 };
+    let financials: any[] = [];
+    let news: any[] = [];
+
+    try { quotes = await tencentQuote([code]); } catch (e) { console.error('tencentQuote failed:', e); }
+    try { fundFlow = await eastmoneyFundFlow(code); } catch (e) { console.error('fundFlow failed:', e); }
+    try { financials = await sinaFinancialReport(code, 'lrb', 4); } catch (e) { console.error('financials failed:', e); }
+    try { news = await eastmoneyStockNews(code, 5); } catch (e) { console.error('news failed:', e); }
 
     const quote = quotes[code];
     if (!quote) {
       return NextResponse.json({
         success: false,
         data: null,
-        error: `未找到股票 ${code}`,
+        error: `未找到股票 ${code}，请检查代码是否正确`,
         updatedAt: new Date().toISOString(),
       } as ApiResponse<null>, { status: 404 });
     }
 
-    // 简单因子计算（MVP 版本）
     const companyScore = calcCompanyScore(quote, financials);
     const capitalScore = calcCapitalScore(fundFlow);
     const momentumScore = calcMomentumScore(quote);
-    const industryScore = 50; // 需行业对比，MVP 用默认值
+    const industryScore = 50;
     const eventScore = calcEventScore(news);
 
     const totalScore = Math.round(
@@ -61,6 +64,7 @@ export async function GET(req: NextRequest) {
     } as ApiResponse<IASScore>);
 
   } catch (err: any) {
+    console.error('[stock/score] 未知错误:', err);
     return NextResponse.json({
       success: false,
       data: null,
@@ -70,34 +74,27 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ===== 评分子函数 =====
-
 function calcCompanyScore(quote: any, financials: any[]): number {
   let score = 50;
-
-  // PE 估值（低 PE 得分高）
   if (quote.pe > 0 && quote.pe < 15) score += 15;
   else if (quote.pe >= 15 && quote.pe < 30) score += 5;
   else if (quote.pe >= 50) score -= 10;
-
-  // PB 估值
   if (quote.pb > 0 && quote.pb < 1.5) score += 10;
   else if (quote.pb >= 5) score -= 5;
-
-  // 从财报提取利润增长率
   if (financials.length >= 2) {
-    const latest = financials[0];
-    const prev = financials[1];
-    const profitCur = parseFloat(String(latest['净利润'] || '0').replace(/,/g, ''));
-    const profitPrev = parseFloat(String(prev['净利润'] || '0').replace(/,/g, ''));
-    if (profitCur > 0 && profitPrev > 0) {
-      const growth = (profitCur - profitPrev) / profitPrev;
-      if (growth > 0.2) score += 15;
-      else if (growth > 0) score += 5;
-      else score -= 5;
-    }
+    try {
+      const latest = financials[0];
+      const prev = financials[1];
+      const pc = parseFloat(String(latest['净利润'] || '0').replace(/,/g, ''));
+      const pp = parseFloat(String(prev['净利润'] || '0').replace(/,/g, ''));
+      if (pc > 0 && pp > 0) {
+        const growth = (pc - pp) / pp;
+        if (growth > 0.2) score += 15;
+        else if (growth > 0) score += 5;
+        else score -= 5;
+      }
+    } catch { /* ignore */ }
   }
-
   return Math.max(0, Math.min(100, score));
 }
 
@@ -116,20 +113,15 @@ function calcMomentumScore(quote: any): number {
   else if (quote.changePct > 0) score += 5;
   else if (quote.changePct < -3) score -= 15;
   else score -= 5;
-
-  // 换手率适中更好
   if (quote.turnover > 1 && quote.turnover < 5) score += 10;
   else if (quote.turnover > 10) score -= 5;
-
   return Math.max(0, Math.min(100, score));
 }
 
 function calcEventScore(news: any[]): number {
-  if (news.length === 0) return 50;
-  const recentNews = news.filter((n: any) => {
-    const d = new Date(n.time);
-    const now = new Date();
-    return now.getTime() - d.getTime() < 7 * 24 * 60 * 60 * 1000;
+  if (!news.length) return 50;
+  const recent = news.filter((n: any) => {
+    try { return Date.now() - new Date(n.time).getTime() < 7 * 86400000; } catch { return false; }
   });
-  return 50 + Math.min(recentNews.length * 3, 20);
+  return 50 + Math.min(recent.length * 3, 20);
 }

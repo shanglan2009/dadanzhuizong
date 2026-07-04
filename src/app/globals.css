@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #0a0e17;
+  --bg-secondary: #111827;
+  --bg-card: #1a2236;
+  --text-primary: #e5e7eb;
+  --text-secondary: #9ca3af;
+  --accent: #3b82f6;
+  --accent-green: #10b981;
+  --accent-red: #ef4444;
+  --accent-orange: #f59e0b;
+  --border: #1f2937;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-secondary); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* 卡片样式 */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+/* 数字格式化 */
+.num-up { color: var(--accent-red); }
+.num-down { color: var(--accent-green); }
+.score-high { color: var(--accent-green); font-weight: 700; }
+.score-mid { color: var(--accent-orange); font-weight: 700; }
+.score-low { color: var(--accent-red); font-weight: 700; }

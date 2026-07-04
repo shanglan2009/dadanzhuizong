@@ -3,12 +3,22 @@
   "buildCommand": "next build",
   "installCommand": "npm install",
   "regions": ["hkg1"],
+  "crons": [
+    {
+      "path": "/api/cron/daily-push?cronSecret=ias-cron-secret",
+      "schedule": "25 1 * * 1-5"
+    },
+    {
+      "path": "/api/cron/signal-scan?cronSecret=ias-cron-secret",
+      "schedule": "*/5 1-7 * * 1-5"
+    }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",
       "headers": [
         { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET,OPTIONS" }
+        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,OPTIONS" }
       ]
     }
   ]
